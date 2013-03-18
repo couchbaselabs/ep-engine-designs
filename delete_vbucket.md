@@ -18,10 +18,29 @@ Shufflemaster, one of Couchbase customers, has brount up an issue where deleting
 * EP Engine
 * CouchDB
 
-####Short-Term Solution - Disable Write Barrier
-This approach does not requires any changes in Couchbase components or current protocol for deleting vBuckets. Write Barrier, a OS filesystem mechanism, basically ensure that data being written via fsync() is persistent to storage devices via disk write through method. For this data access that creates and deletes many small files, vBucket files for Couchbase, incur perfroamnce slowness. By disabling wrtie barrie (barrier=0) the engineering team measures that both deleting and creating vBuckets get significantly faster. 
+####Short-Term Solution 1 - Reduce the number of vbuckets
 
-* For a Linux system, one can disable the barrier at mount time using "-o nobarrier" option for "mount" command. Please note that some devices may not support write barriers. Check for an error message in /var/log/messages. 
+This approach does not require any source changes. Given that this use
+case of flush is mostly used for unit tests the user is most likely
+not using a large cluster with a desire of seamless scaling to a lot
+of nodes. By reducing the number of vbuckets to lets say 4 (it must be
+a power of two), flush performs at an acceptable performance.
+
+Right after the installation (before walking through the wizard
+defining the first bucket) you should shut down the node and add the
+following lines to /opt/couchbase/bin/couchbase-server right after the
+license text:
+
+    COUCHBASE_NUM_VBUCKETS=4
+    export COUCHBASE_NUM_VBUCKETS
+
+Please note that you have to do this on _all_ of the nodes
+participating in the cluster.
+
+####Short-Term Solution 2 - Disable Write Barrier
+This approach does not requires any changes in Couchbase components or current protocol for deleting vBuckets. Write Barrier, a OS filesystem mechanism, basically ensure that data being written via fsync() is persistent to storage devices via disk write through method. For this data access that creates and deletes many small files, vBucket files for Couchbase, incur perfroamnce slowness. By disabling wrtie barrie (barrier=0) the engineering team measures that both deleting and creating vBuckets get significantly faster.
+
+* For a Linux system, one can disable the barrier at mount time using "-o nobarrier" option for "mount" command. Please note that some devices may not support write barriers. Check for an error message in /var/log/messages.
 
 Read more information about the storage write through method at http://hub.internal.couchbase.com/confluence/display/~jin/Random+Thoughts+on+Disk+Caching.
 

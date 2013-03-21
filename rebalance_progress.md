@@ -1,6 +1,6 @@
 Owner: Mike Wiederhold  
 Created On: 3/12/13  
-Last Modified: 3/12/13  
+Last Modified: 3/21/13  
 Time to Complete: 5 Days  
 Scheduled Version: 2.0.2
 
@@ -35,10 +35,11 @@ The rebalance task requires that the Couchbase Admin Console displays the follow
 
 **Estimated Number of keys to be transferred**
 
-For each VBucket that needs to be moved Ep-Engine will need to provide an estimate of how many keys will need to be sent through a tap stream in order for a VBucket move to be completed. In order to do this we will add a new command called ESTIMATE_VB_MOVE which will take a tap name as an argument. This command will examine where the tap cursor for a particular tap connection is and whether backfill is needed and provide an estimate of how many keys need to be transmitted through the stream to get a destination VBucket up to date. This stat will take into account the following:
+For each VBucket that needs to be moved Ep-Engine will need to provide an estimate of how many keys will need to be sent through a tap stream in order for a VBucket move to be completed. In order to do this we will add a new command called ESTIMATE_VB_MOVE which can take an optional tap name as an argument. If a tap name exists in the request this command will examine how far along the tap cursor for that particular tap connection is and provide an estimate of how many keys need to be transmitted through the stream to get a destination VBucket up to date. If no tap name is provided or if an invalid tap name is provided then the command will give an estimate assuming that no items have been sent yet. This stat will take into account the following:
 
 * Is backfill required?
 * If we do backfill do we schedule full backfill or do disk fetches?
+* How far along in the backfill process are we
 * How many items will be sent through memory backfill?
 * How many items are in front of the tap cursor in the checkpoint queues?
 * If the tap cursor doesn't exist then we need to handle this appropriately
@@ -56,6 +57,15 @@ NS_Server is aware of which VBuckets is is currently moving between nodes and wi
  **Replica VBuckets currently being transferred**
 
 NS_Server is aware of which VBuckets is is currently moving between nodes and will display this stat without the help of EP_Engine.
+
+**Suggested NS_Server implementation**
+
+When a rebalance begins NS_Server will send an ESTIMATE_VB_MOVE command for each VBucket that needs to be moved. If a tap stream already exists for a specific move then NS_Server will include the tap name for that stream in order to get an accurate estimate and also check the stats for that tap stream to see how many items have already been transimtted. The amount of items already transmitted should be saved by NS_Server and be subracted from the total items transmitted once the VBucket move is completed.
+
+Now that NS_Server has an estimate of the keys to move it will begin moving VBuckets. During this time NS_Server should check the stats for tap streams that are moving VBuckets to get information about the items transmitted. This information can be found in the "stats tap" response. NS_Server should aggregate the items transmitted stat for each move and display this information on the admin console.
+
+Once a VBucket move is completed NS_Server should recompute the estimate for a all Vbuckets. VBucket who completed their move should replace the estimate for their VBUcket move with the actual keys moved and VBuckets that have not yet moves should again call ESTIMATE_VB_MOVE. This process should be repeated until all VBuckets moves are completed.
+
 
 #####Warmup
 

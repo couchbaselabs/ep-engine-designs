@@ -8,6 +8,25 @@ Introduction.
 * **Consumer** - The endpoint in a connection that is responsible for requesting different kinds of data. The consumer is responsible for doing some sort of processing with the data sent from the consumer.
 * **Producer** - The endpoint in a connection that is responsible for producing data for given requests.
 * **Stream** - A stream is a series of messages sent over a given period of time that are generate from a particular request message.
+* **Snapshot** - A unique sequence of keys that is sent by a stream.
+
+##Open Bugs/Issues
+
+* [MB-7558 Replicate lock time](http://www.couchbase.com/issues/browse/MB-7558)
+* [MB-6077 Differentiate between deleted and expired items](http://www.couchbase.com/issues/browse/MB-6077)
+* [MB-5147 Include VB Filter in consumer stats](http://www.couchbase.com/issues/browse/MB-5147)
+* [MB-5146 Consumer shows useful name](http://www.couchbase.com/issues/browse/MB-5146)
+* [MB-2721 Be able to specify filters on key and value](http://www.couchbase.com/issues/browse/MB-2721)
+* [MB-8015 Avoid full rematerialization when cluster is restarted](http://www.couchbase.com/issues/browse/MB-8015)
+* [MB-3493 bg_backlog_size keeps growing on an idle system](http://www.couchbase.com/issues/browse/MB-3493)
+* [MB-3424 Allow tap to send keys only](http://www.couchbase.com/issues/browse/MB-3424)
+* We need to deal with ACK'ing/NACK'ing in our specification
+* Can we have multiple requests in a single request message?
+* How can we handle vbucket ownership transfers?
+* We need to handle getting all sequence numbers from a server
+* We need a bucket flush packet
+* How to do packet parsing? Current plan is protobufs, but why protobufs? Why not Thrift or Avro? What are pros/cons of doing parsing ourselves?
+* Need to add protocol examples
 
 ##Messages
 
@@ -249,8 +268,6 @@ In order to request failover log information the following packet should be sent
 
 The consumer should expect to receive a response from the producer that contains a list of zero or more Vbucket UUID and High Seqno pairs.
 
-Possible failover logs (<Vbucket UUID, High Seqno> pairs, zero or more)
-
     UPR Stream Rollback Response Message
 
 	Byte/     0       |       1       |       2       |       3       |
@@ -296,9 +313,50 @@ Possible failover logs (<Vbucket UUID, High Seqno> pairs, zero or more)
     High Seqno     (37-44) : 0x0000000000009321   (37665)
 
 
-#Below is Still In Progress
-
 ###Streams
+
+Stream can be used in order to request a sequence of data from a given VBucket. A stream is created by sending the stream request message that has been defined above. Below we define the packets that can may be received by the consumer after a stream has been created successfully.
+
+#####Stream Message Types
+
+* Snapshot Start (1)
+* Snapshot End (2)
+* Mutation (3)
+* Deletion (4)
+* Expiration (5)
+* Flush (6)
+
+After a stream has been successfully created the first packet that is seen by the client will be a stream start message. This packet structure is defined below.
+
+    UPR Stream Start Message
+
+    Byte/     0       |       1       |       2       |       3       |
+       /              |               |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+---------------+
+     0|       03      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+     4|       00      |       00      |       00      |       2D      |
+      +---------------+---------------+---------------+---------------+
+     8|       00      |       00      |       00      |       21      |
+      +---------------+---------------+---------------+---------------+
+    12|       01      |
+      +---------------+
+
+    Header breakdown
+    UPR Header command
+    Field        (offset) (value)
+    Opcode         (0)     : 0x03 (Stream Start)
+    Reserved       (1-3)   : 0x000000
+	Request ID     (4-7)   : 0x0000002D           (46)
+    Length         (8-11)  : 0x00000021           (33)
+    Type           (12)    : 0x01
+
+An open stream will send packets in a series of snapshots. A snaphot is simply a series of packets that is guarenteed to contain a unique set of keys. Snapshots a signified by snapshot start and end messages. These messages are defined below.
+
+(TODO) Add the snapshot start and end packets here
+
+After receiving an UPR stream start message the consumer will receive a series of UPR stream messsage that will specify mutations, deletes, and expirations.
 
     UPR Stream Message (Mutation) Message
 
@@ -330,13 +388,6 @@ Possible failover logs (<Vbucket UUID, High Seqno> pairs, zero or more)
     Lock time
     Key            (10-*) :
 	Value          (*-*)  :
-
-Stream Message Types
-SNAPSHOT_START (1)
-SNAPSHOT_END (2)
-MUTATION (3)
-DELETION (4)
-EXPIRATION (5)
 
 
 UPR Stream Message (Deletion) Message

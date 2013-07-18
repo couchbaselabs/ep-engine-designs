@@ -20,13 +20,21 @@ Introduction.
 * [MB-8015 Avoid full rematerialization when cluster is restarted](http://www.couchbase.com/issues/browse/MB-8015)
 * [MB-3493 bg_backlog_size keeps growing on an idle system](http://www.couchbase.com/issues/browse/MB-3493)
 * [MB-3424 Allow tap to send keys only](http://www.couchbase.com/issues/browse/MB-3424)
-* We need to deal with ACK'ing/NACK'ing in our specification
-* Can we have multiple requests in a single request message?
+* [CBD-510 Observe replication of a specific mutation](http://www.couchbase.com/issues/browse/CBD-510)
+* We need to deal with dead connections in our specification
 * How can we handle vbucket ownership transfers?
-* We need to handle getting all sequence numbers from a server
+* We need to handle getting all high sequence numbers from a server
 * We need a bucket flush packet
 * How to do packet parsing? Current plan is protobufs, but why protobufs? Why not Thrift or Avro? What are pros/cons of doing parsing ourselves?
 * Need to add protocol examples
+* Discuss error opcodes
+* Discuss Damien's rollback vs. Aarons (Wanted by Damien)
+* Discuss whether request id is needed (Wanted by Damien)
+* What happens if an item is replicated through XDCR to a remote cluster and the the local cluster crashes before the replicated item is persisted. This will result in inconsistency. Discuss this issue with Junyi.
+* Address backwards compatability
+* Better stats accounting when it comes to aggregrating tap stats. This is an issue in the current tap implementation too.
+* UPR security issues
+* We need to add a way to stop tap streams
 
 ##Messages
 
@@ -338,10 +346,8 @@ After a stream has been successfully created the first packet that is seen by th
       +---------------+---------------+---------------+---------------+
      4|       00      |       00      |       00      |       2D      |
       +---------------+---------------+---------------+---------------+
-     8|       00      |       00      |       00      |       21      |
+     8|       00      |       00      |       00      |       00      |
       +---------------+---------------+---------------+---------------+
-    12|       01      |
-      +---------------+
 
     Header breakdown
     UPR Header command
@@ -349,75 +355,222 @@ After a stream has been successfully created the first packet that is seen by th
     Opcode         (0)     : 0x03 (Stream Start)
     Reserved       (1-3)   : 0x000000
 	Request ID     (4-7)   : 0x0000002D           (46)
-    Length         (8-11)  : 0x00000021           (33)
-    Type           (12)    : 0x01
+    Length         (8-11)  : 0x00000000
 
 An open stream will send packets in a series of snapshots. A snaphot is simply a series of packets that is guarenteed to contain a unique set of keys. Snapshots a signified by snapshot start and end messages. These messages are defined below.
 
-(TODO) Add the snapshot start and end packets here
+    UPR Stream Snapshot Start Message
+
+    Byte/     0       |       1       |       2       |       3       |
+       /              |               |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+---------------+
+     0|       04      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+     4|       00      |       00      |       00      |       2D      |
+      +---------------+---------------+---------------+---------------+
+     8|       00      |       00      |       00      |       01      |
+      +---------------+---------------+---------------+---------------+
+    12|       01      |
+      +---------------+
+
+    Header breakdown
+    UPR Header command
+    Field        (offset) (value)
+    Opcode         (0)     : 0x04 (Stream Message)
+    Reserved       (1-3)   : 0x000000
+	Request ID     (4-7)   : 0x0000002D           (46)
+    Length         (8-11)  : 0x00000001           (1)
+    Type           (12)    : 0x01 (Snapshot Start)
+
+    UPR Stream Snapshot End Message
+
+    Byte/     0       |       1       |       2       |       3       |
+       /              |               |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+---------------+
+     0|       04      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+     4|       00      |       00      |       00      |       2D      |
+      +---------------+---------------+---------------+---------------+
+     8|       00      |       00      |       00      |       01      |
+      +---------------+---------------+---------------+---------------+
+    12|       02      |
+      +---------------+
+
+    Header breakdown
+    UPR Header command
+    Field        (offset) (value)
+    Opcode         (0)     : 0x04 (Stream Message)
+    Reserved       (1-3)   : 0x000000
+	Request ID     (4-7)   : 0x0000002D           (46)
+    Length         (8-11)  : 0x00000001           (1)
+    Type           (12)    : 0x02 (Snapshot End)
 
 After receiving an UPR stream start message the consumer will receive a series of UPR stream messsage that will specify mutations, deletes, and expirations.
 
-    UPR Stream Message (Mutation) Message
+    UPR Stream Message
 
     Byte/     0       |       1       |       2       |       3       |
        /              |               |               |               |
       |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
       +---------------+---------------+---------------+---------------+
-     0|       80      |    94 ('@')   |       00      |       05      |
+     0|       04      |       00      |       00      |       00      |
       +---------------+---------------+---------------+---------------+
-     4|       04      |       00      |       00      |       00      |
+     4|       00      |       00      |       00      |       2D      |
       +---------------+---------------+---------------+---------------+
-     8|       00      |       00      |       00      |       09      |
+     8|       00      |       00      |       00      |       2D      |
       +---------------+---------------+---------------+---------------+
-    12|       00      |       00      |       00      |       00      |
+    12|       03      |       00      |       00      |       00      |
       +---------------+---------------+---------------+---------------+
+    16|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    20|       A5      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    24|       00      |       00      |       00      |       08      |
+      +---------------+---------------+---------------+---------------+
+    28|       CB      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    32|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    36|       03      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    40|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    44|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    48|       00      |       6D      |       79      |       6B      |
+      +---------------+---------------+---------------+---------------+
+    52|       65      |       79      |       6D      |       79      |
+      +---------------+---------------+---------------+---------------+
+    56|       76      |       61      |       6C      |       75      |
+      +---------------+---------------+---------------+---------------+
+    58|       65      |
+      +---------------+
 
     Header breakdown
     UPR Header command
     Field        (offset) (value)
-    Opcode         (0)    : 0x02 (Stream Message)
-    Stream Id      (1-4)  : 
-    Length         (5-8)  :
-    Type           (9)    : 0x03
-	Cas
-    By Seqno
-    Rev Seqno
-	Item Flags
-    Item Exp
-    Lock time
-    Key            (10-*) :
-	Value          (*-*)  :
+    Opcode         (0)     : 0x04 (Stream Message)
+    Reserved       (1-3)   : 0x000000
+	Request ID     (4-7)   : 0x0000002D           (46)
+    Length         (8-11)  : 0x0000002D           (46)
+    Type           (12)    : 0x03                 (Mutation)
+	Cas            (13-20) : 0x00000000000000A5   (165)
+    By Seqno       (21-28) : 0x00000000000008CB   (2251)
+    Rev Seqno      (29-36) : 0x0000000000000003   (3)
+	Item Flags     (37-40) : 0x00000000           (0)
+    Item Exp       (41-44) : 0x00000000           (0)
+    Lock time      (45-48) : 0x00000000           (0)
+    Key            (49-53) : "mykey"
+	Value          (54-58) : "myvalue"
 
 
-UPR Stream Message (Deletion) Message
+    UPR Stream Delete Message
 
     Byte/     0       |       1       |       2       |       3       |
        /              |               |               |               |
       |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
       +---------------+---------------+---------------+---------------+
-     0|       80      |    94 ('@')   |       00      |       05      |
+     0|       04      |       00      |       00      |       00      |
       +---------------+---------------+---------------+---------------+
-     4|       04      |       00      |       00      |       00      |
+     4|       00      |       00      |       00      |       2D      |
       +---------------+---------------+---------------+---------------+
-     8|       00      |       00      |       00      |       09      |
+     8|       00      |       00      |       00      |       29      |
       +---------------+---------------+---------------+---------------+
-    12|       00      |       00      |       00      |       00      |
+    12|       04      |       00      |       00      |       00      |
       +---------------+---------------+---------------+---------------+
+    16|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    20|       A5      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    24|       00      |       00      |       00      |       08      |
+      +---------------+---------------+---------------+---------------+
+    28|       CB      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    32|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    36|       03      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    40|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    44|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    48|       00      |       6D      |       79      |       6B      |
+      +---------------+---------------+---------------+---------------+
+    52|       65      |       79      |
+      +---------------+---------------+
+
 
     Header breakdown
     UPR Header command
     Field        (offset) (value)
-    Opcode         (0)    : 0x02 (Stream Message)
-    Stream Id      (1-4)  : 
-    Length         (5-8)  :
-    Type           (9)    : 0x04
-	Cas
-    By Seqno
-    Rev Seqno
-	Item Flags
-    Item Exp
-    Key            (10-*) :
+    Opcode         (0)     : 0x04 (Stream Message)
+    Reserved       (1-3)   : 0x000000
+	Request ID     (4-7)   : 0x0000002D           (46)
+    Length         (8-11)  : 0x00000029           (41)
+    Type           (12)    : 0x04                 (Deletion)
+	Cas            (13-20) : 0x00000000000000A5   (165)
+    By Seqno       (21-28) : 0x00000000000008CB   (2251)
+    Rev Seqno      (29-36) : 0x0000000000000003   (3)
+	Item Flags     (37-40) : 0x00000000           (0)
+    Item Exp       (41-44) : 0x00000000           (0)
+    Lock time      (45-48) : 0x00000000           (0)
+    Key            (49-53) : "mykey"
+
+    UPR Stream Expiration Message
+
+    Byte/     0       |       1       |       2       |       3       |
+       /              |               |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+---------------+
+     0|       04      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+     4|       00      |       00      |       00      |       2D      |
+      +---------------+---------------+---------------+---------------+
+     8|       00      |       00      |       00      |       29      |
+      +---------------+---------------+---------------+---------------+
+    12|       05      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    16|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    20|       A5      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    24|       00      |       00      |       00      |       08      |
+      +---------------+---------------+---------------+---------------+
+    28|       CB      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    32|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    36|       03      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    40|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    44|       00      |       00      |       00      |       00      |
+      +---------------+---------------+---------------+---------------+
+    48|       00      |       6D      |       79      |       6B      |
+      +---------------+---------------+---------------+---------------+
+    52|       65      |       79      |
+      +---------------+---------------+
 
 
+    Header breakdown
+    UPR Header command
+    Field        (offset) (value)
+    Opcode         (0)     : 0x04 (Stream Message)
+    Reserved       (1-3)   : 0x000000
+	Request ID     (4-7)   : 0x0000002D           (46)
+    Length         (8-11)  : 0x00000029           (41)
+    Type           (12)    : 0x05                 (Expiration)
+	Cas            (13-20) : 0x00000000000000A5   (165)
+    By Seqno       (21-28) : 0x00000000000008CB   (2251)
+    Rev Seqno      (29-36) : 0x0000000000000003   (3)
+	Item Flags     (37-40) : 0x00000000           (0)
+    Item Exp       (41-44) : 0x00000000           (0)
+    Lock time      (45-48) : 0x00000000           (0)
+    Key            (49-53) : "mykey"
 
+
+##Use Cases
+
+##FAQ

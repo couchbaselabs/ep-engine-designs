@@ -35,6 +35,7 @@ Introduction.
 * Better stats accounting when it comes to aggregrating tap stats. This is an issue in the current tap implementation too.
 * UPR security issues
 * We need to add a way to stop tap streams
+* Add an RESPONSE_ERROR_DECODE error opcode
 
 ##Messages
 
@@ -70,8 +71,6 @@ The opcode field is used in order to specify the what type of message the client
 * **Stream Begin** (3) - Means that you will recieve multiple responses for a request.
 * **Stream Message** (4) - A single response that is contained in a stream
 * **Stream Close** (5) - Says that the stream has ended.
-* **Request Error Only** (6) - 
-* **Response Decode Error** (7) - 
 
 #####Request ID
 
@@ -159,9 +158,9 @@ In order to initial a stream from a vbucket the consumer must send the following
 * **VBucket** - Specified the vbucket that data should be streamed from.
 * **Start By Seqno** -  Specified the last by sequence number that has been seen by the consumer.
 * **End By Seqno** - Specifies that the stream should be closed when the sequence number with this ID has been sent.
-* **VBucket UUID** -
-* **High Seqno** -
-* **Group ID** -
+* **VBucket UUID** - A unique identifier that is generated that is assigned to each VBucket. This number is generated on an unclean shutdown or when a Vbucket becomes active.
+* **High Seqno** - The high sequence number at the time that the VBucket UUID was generated.
+* **Group ID** - A name that can be given to a stream.
 
 
 After a consumer sends a request to the server for a stream the server can response in one of the following ways.
@@ -409,7 +408,7 @@ An open stream will send packets in a series of snapshots. A snaphot is simply a
 
 After receiving an UPR stream start message the consumer will receive a series of UPR stream messsage that will specify mutations, deletes, and expirations.
 
-    UPR Stream Message
+    UPR Stream Mutation Message
 
     Byte/     0       |       1       |       2       |       3       |
        /              |               |               |               |

@@ -47,7 +47,7 @@ The first step for authentication is for a client connecting to memcached to get
     Opaque       (12-15): 0x00000000
     CAS          (16-23): 0x0000000000000000  (field not used)
 
-The server will respond with a list of mechanisms. As of Couchbase 2.1.0 memcached currently only support PLAIN authentication, but this feature will add CRAM-MD5 authentication as well. Each mechanism will be spearated by a single space (' ').
+The server will respond with a list of mechanisms. As of Couchbase 2.1.0 memcached currently only supports PLAIN authentication, but this feature will add CRAM-MD5 authentication as well. Each mechanism will be separated by a single space (' ').
 
     SASL List Mechanisms Binary Response
 
@@ -129,7 +129,7 @@ Once the client receives a list of supported server mechanisms the client will c
     CAS          (16-23): 0x0000000000000000  (field not used)
 	Mechanisms   (24-31): "CRAM-MD5"
 
-The server will then respond to the client with a challenge. The challenge will be a random string sent by the server to the client that needs to be used when hashing the password with MD5. This random string is used to make sure that an attacker cannot gain access to Couchbases memcached port by using a replay attack. This random string will be unique for each connection.
+The server will then respond to the client with a challenge. The challenge will be a random string sent by the server to the client that needs to be used when hashing the password with MD5. This random string is used to make sure that an attacker cannot gain access to Couchbase's memcached port by using a replay attack. This random string will be unique for each connection.
 
     SASL Server Challenge Binary Response
 
@@ -172,7 +172,7 @@ The server will then respond to the client with a challenge. The challenge will 
     CAS          (16-23): 0x0000000000000000  (field not used)
 	Mechanisms   (24-39): "hsa0bf2892bfwfkk"
 
-The client will then provide and answer to the challenge. As noted above the challenge string should be used with the password when hashing it with MD5. The result of this hashing should be provided in the password field as shown below.
+The client will then provide an answer to the challenge. As noted above the challenge string should be used with the password when hashing it with MD5. The result of this hashing should be provided in the password field as shown below.
 
     SASL Client Challenge Binary Request
 
@@ -220,14 +220,14 @@ The client will then provide and answer to the challenge. As noted above the cha
 	Username     (24-31): "username"
     Password     (32-47): "f327hfqjibf3948f"
 
-If the authentication is successful the client will recieve a message from teh server containing the memcached success error code.
+If the authentication is successful the client will receive a message from the server containing the memcached success error code.
 
 ####Backwards compatibility
 
-This feature will not cause any backwards compatibility issues since it will be up to the client to decide which authentication mechanism to use. We will not remove any of the current mechanisms so the SDK's should not experience any issues connectint to an upgraded server. If an SDK tries to authenticate with an unsupported mechanism then the client should abort the connection and report the issue.
+This feature will not cause any backwards compatibility issues since it will be up to the client to decide which authentication mechanism to use. We will not remove any of the current mechanisms so the SDK's should not experience any issues connecting to an upgraded server. If an SDK tries to authenticate with an unsupported mechanism then the client should abort the connection and report the issue.
 
 ####Client Implementation
 
-The intended way for Couchbase SDK's to implement SASL with multiple authentication schemes will be by using settings internal to a clients connection in order to choose an appropriate authentication mechanism. Couchbase SDK's all come with a default set of parameters that are used upon connection initialization. A new parameter should be added that specifies the type of SASL authentication that the application developer wishes to use. When the client connects to the server it will obtain a list of supported mechanisms. If the mechanism specified by the application developer is contained in the list then that form of authentication will be used. If the mechanism is not in the list then the conneciton should be aborted. See the Client-Server Flow section which discusses the message passed back and forth between the client and the server for details on how to connect to the server using CRAM-MD5.
+The intended way for Couchbase SDK's to implement SASL with multiple authentication schemes will be by using settings internal to a clients connection in order to choose an appropriate authentication mechanism. Couchbase SDK's all come with a default set of parameters that are used upon connection initialization. A new parameter should be added that specifies the type of SASL authentication that the application developer wishes to use. When the client connects to the server it will obtain a list of supported mechanisms. If the mechanism specified by the application developer is contained in the list then that form of authentication will be used. If the mechanism is not in the list then the connection should be aborted. See the Client-Server Flow section which discusses the message passed back and forth between the client and the server for details on how to connect to the server using CRAM-MD5.
 
 

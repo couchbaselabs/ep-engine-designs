@@ -7,6 +7,30 @@ Currently in memcached we provide sasl authentication in order to allow multiple
 
 The intent of this feature is solely to encrypt username and password information over the wire on memcached connections. Couchbase SDK's make other connections to Couchbase over HTTP for cluster configuration and queries and these connections will not be addressed in this specification.
 
+####Client Implementation
+
+The intended way for Couchbase SDK's to implement SASL with multiple authentication schemes will be by using settings internal to a clients connection in order to choose an appropriate authentication mechanism. Couchbase SDK's all come with a default set of parameters that are used upon connection initialization. A new parameter should be added that specifies the types of SASL authentication that the application developer is okay using. The mechanisms should be specifed in order of most secure to least secure.
+
+It is then recommended that the client connects to the server and obtains a list of supported mechanisms. This will allow the client to most quickly find the best authentication mechanism available. If client does not contain any mechanisms the server supports then the conneciton should be aborted. Note that the client is not required to ask for the list of mechanisms and is free to just connect and attempt authorization.
+
+See the Client-Server Flow section which discusses the message passed back and forth between the client and the server for details on how to connect to the server using CRAM-MD5.
+
+####Backwards compatibility
+
+This feature will not cause any backwards compatibility issues since it will be up to the client to decide which authentication mechanism to use. We will not remove any of the current mechanisms so the SDK's should not experience any issues connectint to an upgraded server. If an SDK tries to authenticate with an unsupported server mechanism then the client should close the connection and report that the client does not contain a upported authentication mechanism. Applicaiton traffic would not be allowed in this case.
+
+####Forward compatibility
+
+SDK's released with CRAM-MD5 as an authentication mechanism will need to continue to support PLAIN authentication in order to be able to connect to versions of Couchbase prior to version 2.2.
+
+In order to upgrade a cluster users of Couchbase SDK's will need to make sure that their SDK supports at least one authentication mechanism of each version that will be running in the cluster. The cluster administrator should make sure the appropriat mechanisms are actually enabled on all SDKs.
+
+####CRAM-MD5 Known Vulnerabilities
+
+See section 5 of the IETF draft on CRAM-MD5 below.
+
+http://tools.ietf.org/html/draft-ietf-sasl-crammd5-10
+
 ####Client Server Flow
 
 #####Listing Mechanisms
@@ -221,13 +245,3 @@ The client will then provide an answer to the challenge. As noted above the chal
     Password     (32-47): "f327hfqjibf3948f"
 
 If the authentication is successful the client will receive a message from the server containing the memcached success error code.
-
-####Backwards compatibility
-
-This feature will not cause any backwards compatibility issues since it will be up to the client to decide which authentication mechanism to use. We will not remove any of the current mechanisms so the SDK's should not experience any issues connecting to an upgraded server. If an SDK tries to authenticate with an unsupported mechanism then the client should abort the connection and report the issue.
-
-####Client Implementation
-
-The intended way for Couchbase SDK's to implement SASL with multiple authentication schemes will be by using settings internal to a clients connection in order to choose an appropriate authentication mechanism. Couchbase SDK's all come with a default set of parameters that are used upon connection initialization. A new parameter should be added that specifies the type of SASL authentication that the application developer wishes to use. When the client connects to the server it will obtain a list of supported mechanisms. If the mechanism specified by the application developer is contained in the list then that form of authentication will be used. If the mechanism is not in the list then the connection should be aborted. See the Client-Server Flow section which discusses the message passed back and forth between the client and the server for details on how to connect to the server using CRAM-MD5.
-
-

@@ -7,14 +7,6 @@ Currently in memcached we provide sasl authentication in order to allow multiple
 
 The intent of this feature is solely to encrypt username and password information over the wire on memcached connections. Couchbase SDK's make other connections to Couchbase over HTTP for cluster configuration and queries and these connections will not be addressed in this specification.
 
-####Client Implementation
-
-The intended way for Couchbase SDK's to implement SASL with multiple authentication schemes will be by using settings internal to a clients connection in order to choose an appropriate authentication mechanism. Couchbase SDK's all come with a default set of parameters that are used upon connection initialization. A new parameter should be added that specifies the types of SASL authentication that the application developer is okay using. The mechanisms should be specifed in order of most secure to least secure.
-
-It is then recommended that the client connects to the server and obtains a list of supported mechanisms. This will allow the client to most quickly find the best authentication mechanism available. If client does not contain any mechanisms the server supports then the conneciton should be aborted. Note that the client is not required to ask for the list of mechanisms and is free to just connect and attempt authorization.
-
-See the Client-Server Flow section which discusses the message passed back and forth between the client and the server for details on how to connect to the server using CRAM-MD5.
-
 ####Backwards compatibility
 
 This feature will not cause any backwards compatibility issues since it will be up to the client to decide which authentication mechanism to use. We will not remove any of the current mechanisms so the SDK's should not experience any issues connectint to an upgraded server. If an SDK tries to authenticate with an unsupported server mechanism then the client should close the connection and report that the client does not contain a upported authentication mechanism. Applicaiton traffic would not be allowed in this case.

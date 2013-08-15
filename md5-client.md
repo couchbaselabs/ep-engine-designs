@@ -20,10 +20,10 @@ The client will also be guaranteed to receive the mechanisms in order of most se
 
 ####Client Flow
 
-1) The client sends a series of HTTP requests with HTTP basic auth headers to get the streaming URI
-2) The client send a sasl_mechs command
-3) The available mechanisms supported by the server are compared  to any application specified rules
-4) The client will authenticate with any remaining mechanisms that are valid in the sasl_mechs ordered response
+1. The client sends a series of HTTP requests with HTTP basic auth headers to get the streaming URI
+2. The client send a sasl_mechs command
+3. The available mechanisms supported by the server are compared  to any application specified rules
+4. The client will authenticate with any remaining mechanisms that are valid in the sasl_mechs ordered response
 
 For on the wire packet formats please [see this spec](completed/md5-sasl.md#listing-mechanisms).
 

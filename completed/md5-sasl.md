@@ -237,3 +237,21 @@ The client will then provide an answer to the challenge. As noted above the chal
     Password     (32-47): "f327hfqjibf3948f"
 
 If the authentication is successful the client will receive a message from the server containing the memcached success error code.
+
+####Error Codes
+
+#####SASL_OK (0)
+
+This error code is returned at the end of the authentication handshake to indicate that sasl authentication has completed successfully.
+
+#####SASL_CONTINUE (1)
+
+Indicates that the last message sent during the authentication handshake was received successfully, but that authentication has not yet finished and the server is expecting more information. For example, this error code is received during CRAM-MD5 sasl authentication as a response to the client specifying that the mechanism. SASL_CONTINUE will be received along with the challenge string.
+
+#####SASL_FAIL (2)
+
+May be received at any time during the sasl authentication handshake and indicates that authentication has failed.
+
+#####SASL_BADPARAM (3)
+
+Indicates that sasl authentication has failed because a bad or illegal authentication parameter was received.
